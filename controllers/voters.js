@@ -7,8 +7,8 @@ export const voters = Router();
 // GET /api/voters?search=&limit=&cursor=&status=&sort=
 // status: 'pending' | 'done' | 'all' (default 'all')
 // sort:   'status' | 'street' | 'name'  (default 'status')
-// Returns household rollups:
-// { householdId, address, coords, membersCount, statusColor, statusLabel, streetName, cursor }
+// Rule: DONE if household has ANY status != 'Unvisited' (or null/empty)
+//       PENDING only if ALL are Unvisited/empty
 voters.get("/voters", async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit ?? 200), 500);
@@ -32,12 +32,11 @@ voters.get("/voters", async (req, res, next) => {
       ];
     }
 
-    // Build pipeline
     const pipeline = [
       { $match: match },
       { $sort: { _id: 1 } },
 
-      // Household rollup
+      // Roll up by household
       {
         $group: {
           _id: "$householdId",
@@ -46,35 +45,51 @@ voters.get("/voters", async (req, res, next) => {
           address: { $first: "$address" },
           lat: { $first: "$latitude" },
           lng: { $first: "$longitude" },
-          statuses: { $addToSet: "$lastStatus" },
-          lastNames: { $addToSet: "$lastName" },
+          statuses: { $addToSet: "$lastStatus" }, // set of statuses across members
         },
       },
 
-      // Compute color (legacy), label (human), and a pending/done bucket
+      // Flags
+      {
+        $addFields: {
+          // any non-Unvisited present?
+          hasVisited: {
+            $gt: [
+              {
+                $size: {
+                  $setDifference: ["$statuses", ["Unvisited", null, ""]],
+                },
+              },
+              0,
+            ],
+          },
+          hasSurveyed: { $in: ["Surveyed", "$statuses"] },
+          hasBad: {
+            $gt: [
+              {
+                $size: {
+                  $setIntersection: [
+                    "$statuses",
+                    ["Refused", "Wrong Address", "Moved"],
+                  ],
+                },
+              },
+              0,
+            ],
+          },
+          hasNotHome: { $in: ["Not Home", "$statuses"] },
+        },
+      },
+
+      // Keep color scheme for map rings
       {
         $addFields: {
           statusColor: {
             $switch: {
               branches: [
-                {
-                  case: {
-                    $gt: [
-                      {
-                        $size: {
-                          $setIntersection: [
-                            "$statuses",
-                            ["Refused", "Wrong Address", "Moved"],
-                          ],
-                        },
-                      },
-                      0,
-                    ],
-                  },
-                  then: "Red",
-                },
-                { case: { $in: ["Surveyed", "$statuses"] }, then: "Green" },
-                { case: { $in: ["Not Home", "$statuses"] }, then: "Blue" },
+                { case: "$hasBad", then: "Red" },
+                { case: "$hasSurveyed", then: "Green" },
+                { case: "$hasNotHome", then: "Blue" },
               ],
               default: "Gray",
             },
@@ -82,52 +97,18 @@ voters.get("/voters", async (req, res, next) => {
         },
       },
 
+      // Human bucket
       {
         $addFields: {
-          // Human-friendly bucket
-          statusLabel: {
-            $switch: {
-              branches: [
-                // Done = any conclusive outcome (Green/Red) or explicitly Surveyed
-                {
-                  case: {
-                    $or: [
-                      { $in: ["Surveyed", "$statuses"] },
-                      {
-                        $gt: [
-                          {
-                            $size: {
-                              $setIntersection: [
-                                "$statuses",
-                                ["Refused", "Wrong Address", "Moved"],
-                              ],
-                            },
-                          },
-                          0,
-                        ],
-                      },
-                    ],
-                  },
-                  then: "Done",
-                },
-                // Not Home is still pending work
-                { case: { $in: ["Not Home", "$statuses"] }, then: "Pending" },
-              ],
-              // Unvisited/unknown → Pending
-              default: "Pending",
-            },
-          },
+          statusLabel: { $cond: ["$hasVisited", "Done", "Pending"] },
         },
       },
 
-      // Extract street name for sorting (drop leading number)
+      // Extract street name without leading number
       {
         $addFields: {
           _streetMatch: {
-            $regexFind: {
-              input: "$address.line1",
-              regex: /^\s*\d+\s*(.*)$/, // capture street without number
-            },
+            $regexFind: { input: "$address.line1", regex: /^\s*\d+\s*(.*)$/ },
           },
         },
       },
@@ -148,7 +129,7 @@ voters.get("/voters", async (req, res, next) => {
         },
       },
 
-      // Filter by pending/done if provided
+      // Optional filter
       ...(statusFilter === "pending" || statusFilter === "done"
         ? [
             {
@@ -159,7 +140,7 @@ voters.get("/voters", async (req, res, next) => {
           ]
         : []),
 
-      // Final projection
+      // Final shape
       {
         $project: {
           _id: 0,
@@ -171,16 +152,18 @@ voters.get("/voters", async (req, res, next) => {
           statusLabel: 1,
           streetName: 1,
           cursor: { $last: "$docIds" },
+          // TEMP: keep statuses for quick verification in dev logs (not sent to client)
+          _dbg_statuses: "$statuses",
         },
       },
 
-      // Sort
+      // Sorting
       (() => {
         if (sortKey === "street")
           return { $sort: { streetName: 1, householdId: 1 } };
         if (sortKey === "name")
           return { $sort: { "address.line1": 1, householdId: 1 } };
-        // default sort: Pending first, then street
+        // default: Pending first
         return {
           $addFields: {
             _statusOrder: {
@@ -197,8 +180,25 @@ voters.get("/voters", async (req, res, next) => {
     ];
 
     const rows = await Voter.aggregate(pipeline).exec();
+
+    // quick console peek (dev only)
+    if (process.env.NODE_ENV !== "production") {
+      // log first 3 households’ statuses so you can see why they bucketed
+      // (comment this out when you’re done)
+      console.log(
+        "[voters] sample statuses:",
+        rows.slice(0, 3).map((r) => ({
+          hh: r.householdId,
+          statuses: r._dbg_statuses,
+          label: r.statusLabel,
+        }))
+      );
+    }
+
     const nextCursor = rows.length ? rows[rows.length - 1].cursor : null;
-    res.json({ ok: true, rows, cursor: nextCursor });
+    // strip debug field before sending
+    const clean = rows.map(({ _dbg_statuses, ...r }) => r);
+    res.json({ ok: true, rows: clean, cursor: nextCursor });
   } catch (e) {
     next(e);
   }
