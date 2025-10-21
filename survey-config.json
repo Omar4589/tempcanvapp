@@ -1,0 +1,29 @@
+{
+  "_id": "granbury-2025-oct",
+  "questions": [
+    {
+      "key": "support_level",
+      "label": "Support Level",
+      "type": "single",
+      "options": ["Support", "Likely Support", "Undecided", "Oppose"]
+    },
+    {
+      "key": "count_on_you",
+      "label": "Can we count on you to oppose incorporation this November and help keep Mitchell Bend free and unique?",
+      "type": "boolean"
+    },
+    {
+      "key": "facility_issues",
+      "label": "What issues, if any, are you experiencing from the current facility?",
+      "type": "text"
+    }
+  ],
+  "statusOptions": [
+    "Surveyed",
+    "Not Home",
+    "Refused",
+    "Wrong Address",
+    "Moved"
+  ],
+  "hasNotes": true
+}
