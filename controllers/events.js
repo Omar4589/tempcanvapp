@@ -10,7 +10,7 @@ const EventBody = z.object({
   vuid: z.string().min(1),
   householdId: z.string().min(1),
   status: z.enum(["Surveyed", "Not Home", "Refused", "Wrong Address", "Moved"]),
-  surveyAnswers: z.record(z.any()).optional().default({}),
+  surveyAnswers: z.any().optional(), 
   notes: z.string().max(2000).optional(),
   timestamp: z.coerce.date(),
   deviceId: z.string().min(1),
