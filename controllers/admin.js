@@ -63,58 +63,65 @@ admin.post(
         let row;
         while ((row = parser.read())) {
           total++;
+
+          // ✅ normalize all keys to lowercase
+          const normalized = {};
+          for (const [k, v] of Object.entries(row)) {
+            normalized[k.toLowerCase()] = typeof v === "string" ? v.trim() : v;
+          }
+
+          // ✅ simplified pick: only use lowercase now
+          const pick = (r, keys) => {
+            for (const k of keys) {
+              if (r[k] && String(r[k]).trim()) return String(r[k]).trim();
+            }
+            return "";
+          };
+
           const vuid =
-            pick(row, ["vuid", "VUID"]) ||
+            pick(normalized, ["vuid"]) ||
             deriveFallbackVuid({
-              first: pick(row, ["firstname", "FirstName"]),
-              last: pick(row, ["lastname", "LastName"]),
-              line1: pick(row, [
-                "RegistrationAddress1",
+              first: pick(normalized, ["firstname"]),
+              last: pick(normalized, ["lastname"]),
+              line1: pick(normalized, [
+                "registrationaddress1",
                 "address1",
-                "Address1",
+                "address",
               ]),
-              city: pick(row, ["RegistrationAddressCity", "city", "City"]),
-              state: pick(row, ["RegistrationAddressState", "state", "State"]),
-              zip: pick(row, ["RegistrationAddressZip5", "zip", "Zip", "Zip5"]),
+              city: pick(normalized, ["registrationaddresscity", "city"]),
+              state: pick(normalized, ["registrationaddressstate", "state"]),
+              zip: pick(normalized, ["registrationaddresszip5", "zip", "zip5"]),
             });
 
           const householdId =
-            pick(row, ["householdid", "hhid", "HouseholdId", "HouseholdID"]) ||
-            `${pick(row, ["RegistrationAddress1"])}|${pick(row, [
-              "RegistrationAddressCity",
-            ])}|${pick(row, ["RegistrationAddressState"])}|${pick(row, [
-              "RegistrationAddressZip5",
-            ])}`.toLowerCase();
+            pick(normalized, ["householdid", "hhid"]) ||
+            `${pick(normalized, ["registrationaddress1"])}|${pick(normalized, [
+              "registrationaddresscity",
+            ])}|${pick(normalized, ["registrationaddressstate"])}|${pick(
+              normalized,
+              ["registrationaddresszip5"]
+            )}`.toLowerCase();
 
           const doc = {
             vuid,
             householdId,
-            firstName: pick(row, ["firstname", "FirstName"]),
-            middleName: pick(row, ["middlename", "MiddleName"]),
-            lastName: pick(row, ["lastname", "LastName"]),
+            firstName: pick(normalized, ["firstname"]),
+            middleName: pick(normalized, ["middlename"]),
+            lastName: pick(normalized, ["lastname"]),
             address: {
-              line1: pick(row, [
-                "RegistrationAddress1",
-                "address1",
-                "Address1",
-              ]),
-              line2: pick(row, [
-                "RegistrationAddress2",
-                "address2",
-                "Address2",
-              ]),
-              city: pick(row, ["RegistrationAddressCity", "City"]),
-              state: pick(row, ["RegistrationAddressState", "State"]),
-              zip: pick(row, ["RegistrationAddressZip5", "Zip5", "Zip"]),
+              line1: pick(normalized, ["registrationaddress1", "address1"]),
+              line2: pick(normalized, ["registrationaddress2", "address2"]),
+              city: pick(normalized, ["registrationaddresscity", "city"]),
+              state: pick(normalized, ["registrationaddressstate", "state"]),
+              zip: pick(normalized, ["registrationaddresszip5", "zip", "zip5"]),
             },
-            latitude: Number(pick(row, ["latitude", "Latitude"])) || undefined,
-            longitude:
-              Number(pick(row, ["longitude", "Longitude"])) || undefined,
-            precinct: pick(row, ["precinct", "Precinct"]),
-            county: pick(row, ["county", "County"]),
-            party: pick(row, ["party", "Party"]),
-            age: Number(pick(row, ["age", "Age"])) || undefined,
-            sex: pick(row, ["sex", "Sex"]) || undefined,
+            latitude: Number(pick(normalized, ["latitude"])) || undefined,
+            longitude: Number(pick(normalized, ["longitude"])) || undefined,
+            precinct: pick(normalized, ["precinct"]),
+            county: pick(normalized, ["county"]),
+            party: pick(normalized, ["party"]),
+            age: Number(pick(normalized, ["age"])) || undefined,
+            sex: pick(normalized, ["sex"]) || undefined,
           };
 
           const resu = await Voter.updateOne(

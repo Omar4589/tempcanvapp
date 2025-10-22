@@ -14,6 +14,8 @@ async function main() {
 
   const app = express();
   app.disable("x-powered-by");
+  // ✅ you’re behind a reverse proxy (Heroku), trust it
+  app.set("trust proxy", 1);
 
   app.use(compression());
   app.use(express.json({ limit: "1mb" }));
