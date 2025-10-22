@@ -12,7 +12,7 @@ const EventBody = z.object({
   status: z.enum(["Surveyed", "Not Home", "Refused", "Wrong Address", "Moved"]),
   surveyAnswers: z.record(z.any()).optional().default({}),
   notes: z.string().max(2000).optional(),
-  timestamp: z.string().datetime(),
+  timestamp: z.coerce.date(),
   deviceId: z.string().min(1),
   geo: z.object({ lat: z.number(), lng: z.number() }),
 });
