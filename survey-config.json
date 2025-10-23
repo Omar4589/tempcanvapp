@@ -3,7 +3,7 @@
   "questions": [
     {
       "key": "support_level",
-      "label": "Support Level",
+      "label": "Support Level (Remember this is basically asking if they support OPPOSING incorporating)",
       "type": "single",
       "options": ["Support", "Likely Support", "Undecided", "Oppose"]
     },
@@ -20,7 +20,7 @@
     },
     {
       "key": "count_on_you",
-      "label": "How will you vote on incorporating Mithcell Bend into a city?",
+      "label": "How will you vote on incorporating Mitchell Bend into a city? (asking if they support incorporating)",
       "type": "single",
       "options": [
         "Support Incorporation",
