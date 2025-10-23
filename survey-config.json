@@ -8,14 +8,26 @@
       "options": ["Support", "Likely Support", "Undecided", "Oppose"]
     },
     {
-      "key": "count_on_you",
-      "label": "Can we count on you to oppose incorporation this November and help keep Mitchell Bend free and unique?",
-      "type": "boolean"
+      "key": "voting",
+      "label": "Do you plan to vote?",
+      "type": "single",
+      "options": [
+        "Voting Early",
+        "Voting Election Day",
+        "Undecided",
+        "Not Voting"
+      ]
     },
     {
-      "key": "facility_issues",
-      "label": "What issues, if any, are you experiencing from the current facility?",
-      "type": "text"
+      "key": "count_on_you",
+      "label": "How will you vote on incorporating Mithcell Bend into a city?",
+      "type": "single",
+      "options": [
+        "Support Incorporation",
+        "Likely Support Incorporation",
+        "Undecided",
+        "Oppose Incorporation"
+      ]
     }
   ],
   "statusOptions": [
